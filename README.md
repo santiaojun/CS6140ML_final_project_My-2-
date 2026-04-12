@@ -41,27 +41,36 @@ python data_pipeline.py --input Musical_Instruments_5.json --output_dir ./data/p
 python mf_model.py --lr 0.001 --reg_lambda 1e-5 --n_epochs 100
 ```
 
-### 3. Train Two-Tower
+### 3. Train Two-Tower(single run)
 ```bash
-python train.py --lr 0.0001 --reg_lambda 0.001 --dropout 0.2
+python train.py --lr 0.001 --reg_lambda 0.00001 --dropout 0.1 --n_epochs 100 --patience 15
 ```
 
 ### 4. Run Two-Tower Ablation Study
 ```bash
-python train.py --ablation --lr 0.0001 --reg_lambda 0.001 --dropout 0.2
+python train.py --ablation --lr 0.001 --reg_lambda 0.00001 --dropout 0.1 --n_epochs 100 --patience 15
 ```
 
 ## Models
 
 ### Matrix Factorization (MF)
-- Architecture: `user_id -> Embedding -> Dot Product <- Embedding <- item_id`
+- Architecture: user_id → Embedding → Dot Product ← Embedding ← item_id
 - Loss: BPR (Bayesian Personalized Ranking) + L2 regularization
-- Only learns linear relationships between users and items
+- Limitation: Only learns linear relationships between users and items
+- Ablation dimensions:
+  - Loss function: BPR vs BCE
+  - Embedding dimension: 32 / 64 / 128
+  - L2 regularization strength: 1e-3 / 1e-4 / 1e-5
 
 ### Two-Tower
-- Architecture: `user_id -> Embedding -> MLP -> L2 Norm -> Cosine Similarity <- L2 Norm <- MLP <- Embedding <- item_id`
-- Loss: BPR + L2 regularization + Dropout + BatchNorm
-- Can learn non-linear relationships via MLP layers
+- Architecture: user_id → Embedding → MLP → L2 Norm → Cosine Similarity ← L2 Norm ← MLP ← Embedding ← item_id
+- Loss: BPR + L2 regularization
+- Regularization: BatchNorm + Dropout inside each Tower
+- Advantage: Captures non-linear relationships via MLP; L2-normalized outputs enable ANN retrieval
+- Ablation dimensions:
+    - Activation function: ReLU / GELU / Tanh
+    - MLP depth: 1 / 2 / 3 layers
+    - Embedding dimension: 32 / 64 / 128
 
 ## Evaluation
 - Protocol: 1 positive + 99 random negatives per user (He et al., 2017)
@@ -77,6 +86,19 @@ Amazon Review 5-core datasets:
 | CDs & Vinyl | 107,546 | 71,943 | 1,161,916 | 10.8 |
 | Kindle Store | 139,028 | 98,584 | 1,936,163 | 13.9 |
 | Movies & TV | 281,514 | 59,067 | 2,652,975 | 9.4 |
+
+## Results
+
+### Musical Instruments Dataset
+
+| Model | Config | HR@5 | HR@10 | HR@20 | NDCG@5 | NDCG@10 | NDCG@20 |
+|-------|--------|------|-------|-------|--------|---------|---------|
+| MF (best) | BPR, dim=64, reg=1e-5 | 0.3373 | 0.4620 | 0.6032 | 0.2416 | 0.2818 | 0.3175 |
+| Two-Tower (preliminary) | ReLU, layers=2, dim=64, reg=1e-5 | 0.2967 | 0.7612* | 0.8397* | 0.1434 | 0.2953 | 0.3162 |
+
+*\* Unstable due to random negative sampling in evaluation — to be re-evaluated after fixing seed.*
+
+*Full ablation results in `results/` directory after fixing evaluation.*
 
 ## References
 1. Koren et al. (2009) - Matrix Factorization Techniques for Recommender Systems
