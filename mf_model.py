@@ -100,8 +100,10 @@ class BPRLoss(nn.Module):
             torch.sigmoid(pos_scores - neg_scores) + 1e-8
         ).mean()
         # L2 regularization on embeddings to prevent overfitting
-        reg_loss = model.user_emb.weight.norm(2).pow(2) + model.item_emb.weight.norm(2).pow(2)
-        return bpr_loss + self.reg_lambda * reg_loss
+        if self.reg_lambda > 0:
+            reg_loss = model.user_emb.weight.norm(2).pow(2) + model.item_emb.weight.norm(2).pow(2)
+            return bpr_loss + self.reg_lambda * reg_loss
+        return bpr_loss
 
 
 class BCELoss(nn.Module):
@@ -122,8 +124,10 @@ class BCELoss(nn.Module):
             torch.zeros_like(neg_scores)
         ])
         bce_loss = self.bce(scores, labels)
-        reg_loss = model.user_emb.weight.norm(2).pow(2) + model.item_emb.weight.norm(2).pow(2)
-        return bce_loss + self.reg_lambda * reg_loss
+        if self.reg_lambda > 0:
+            reg_loss = model.user_emb.weight.norm(2).pow(2) + model.item_emb.weight.norm(2).pow(2)
+            return bce_loss + self.reg_lambda * reg_loss
+        return bce_loss
 
 
 # ──────────────────────────────────────────
