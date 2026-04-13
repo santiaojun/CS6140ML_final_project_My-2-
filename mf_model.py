@@ -42,10 +42,17 @@ class MatrixFactorization(nn.Module):
     which is its core limitation compared to Two-Tower with MLP layers.
     """
 
-    def __init__(self, n_users, n_items, embed_dim=64):
+    def __init__(self, n_users, n_items, embed_dim=64, use_bias=False):
         super().__init__()
+        self.use_bias = use_bias
         self.user_emb = nn.Embedding(n_users, embed_dim)
         self.item_emb = nn.Embedding(n_items, embed_dim)
+
+        if use_bias:
+            self.user_bias = nn.Embedding(n_users, 1)
+            self.item_bias = nn.Embedding(n_items, 1)
+            nn.init.zeros_(self.user_bias.weight)
+            nn.init.zeros_(self.item_bias.weight)
 
         # Xavier initialization: keeps initial values in a reasonable range
         nn.init.xavier_uniform_(self.user_emb.weight)
@@ -53,6 +60,7 @@ class MatrixFactorization(nn.Module):
 
         print(f"\nMatrix Factorization Model:")
         print(f"  embed_dim  = {embed_dim}")
+        print(f"  use_bias   = {use_bias}")
         print(f"  n_users    = {n_users:,}")
         print(f"  n_items    = {n_items:,}")
 
@@ -66,6 +74,11 @@ class MatrixFactorization(nn.Module):
         neg = self.item_emb(neg_items)
         pos_scores = (u * pos).sum(dim=1)
         neg_scores = (u * neg).sum(dim=1)
+
+        if self.use_bias:
+            pos_scores += self.user_bias(user_ids).squeeze() + self.item_bias(pos_items).squeeze()
+            neg_scores += self.user_bias(user_ids).squeeze() + self.item_bias(neg_items).squeeze()
+
         return pos_scores, neg_scores
 
     def get_user_vector(self, user_ids):
@@ -102,6 +115,8 @@ class BPRLoss(nn.Module):
         # L2 regularization on embeddings to prevent overfitting
         if self.reg_lambda > 0:
             reg_loss = model.user_emb.weight.norm(2).pow(2) + model.item_emb.weight.norm(2).pow(2)
+            if model.use_bias:
+                reg_loss += model.user_bias.weight.norm(2).pow(2) + model.item_bias.weight.norm(2).pow(2)
             return bpr_loss + self.reg_lambda * reg_loss
         return bpr_loss
 
@@ -126,6 +141,8 @@ class BCELoss(nn.Module):
         bce_loss = self.bce(scores, labels)
         if self.reg_lambda > 0:
             reg_loss = model.user_emb.weight.norm(2).pow(2) + model.item_emb.weight.norm(2).pow(2)
+            if model.use_bias:
+                reg_loss += model.user_bias.weight.norm(2).pow(2) + model.item_bias.weight.norm(2).pow(2)
             return bce_loss + self.reg_lambda * reg_loss
         return bce_loss
 
@@ -153,6 +170,7 @@ def train(config, output_dir="./results/mf"):
         n_users=n_users,
         n_items=n_items,
         embed_dim=config["embed_dim"],
+        use_bias=config["use_bias"],
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
@@ -257,6 +275,7 @@ def main():
     parser.add_argument("--n_epochs",    type=int,   default=50)
     parser.add_argument("--patience",    type=int,   default=10)
     parser.add_argument("--k_list",      type=int,   nargs="+", default=[5, 10, 20])
+    parser.add_argument("--use_bias",    action="store_true",   default=False)
     args = parser.parse_args()
 
     config = {
@@ -269,6 +288,7 @@ def main():
         "n_epochs":   args.n_epochs,
         "patience":   args.patience,
         "k_list":     args.k_list,
+        "use_bias":   args.use_bias,
     }
 
     train(config, output_dir=args.results_dir)
