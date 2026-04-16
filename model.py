@@ -27,7 +27,7 @@ class Tower(nn.Module):
     A single tower: MLP + L2 Normalization.
 
     Each layer consists of:
-        Linear(embed_dim, embed_dim) -> BatchNorm1d -> Activation -> Dropout
+        Linear(embed_dim, embed_dim) -> LayerNorm1d -> Activation -> Dropout
 
     After MLP, L2 normalization projects the output onto a unit sphere,
     so that dot product = cosine similarity. This enables ANN retrieval
